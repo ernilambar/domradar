@@ -8,29 +8,39 @@ registry) whenever the TLD supports it — a clean 404 means "available."
 For TLDs without RDAP, it falls back to a classic WHOIS socket query
 (port 43), with a text heuristic. No third-party packages required.
 
+## Setup
+
+Install via [pipx](https://pipx.pypa.io) for a global `domradar` command available from any directory:
+
+```bash
+brew install pipx
+pipx ensurepath
+pipx install -e /path/to/domradar
+```
+
 ## Usage
 
 ### Check availability
 
 ```bash
 # Bare name -> checks against popular TLDs (com, net, org, io, co, dev, app, ai)
-python3 domradar.py check example
+domradar check example
 
 # Specific domain
-python3 domradar.py check example.com
+domradar check example.com
 
 # Multiple at once
-python3 domradar.py check example example.com mystartup.io
+domradar check example example.com mystartup.io
 
 # Custom TLD list for bare names
-python3 domradar.py check example --tld com,net,dev
+domradar check example --tld com,net,dev
 
 # Also suggest similar available alternatives when a domain is taken
 # (off by default — enabling this adds extra lookups and is slower)
-python3 domradar.py check example.com --similar
+domradar check example.com --similar
 
 # Control how many alternatives are suggested
-python3 domradar.py check example.com --similar --similar-count 10
+domradar check example.com --similar --similar-count 10
 ```
 
 By default, `check` only reports on the exact domain(s) you asked about —
@@ -43,10 +53,10 @@ for any domain that's taken.
 
 ```bash
 # Structured RDAP info (falls back to raw WHOIS if unsupported)
-python3 domradar.py whois example.com
+domradar whois example.com
 
 # Force the legacy raw WHOIS protocol
-python3 domradar.py whois example.com --raw
+domradar whois example.com --raw
 ```
 
 ### Other flags
