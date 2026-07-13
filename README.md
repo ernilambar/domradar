@@ -41,6 +41,15 @@ domradar check example.com --similar
 
 # Control how many alternatives are suggested
 domradar check example.com --similar --similar-count 10
+
+# Only report AVAILABLE results (quiet mode)
+domradar check example --available-only
+
+# Read one domain per line from stdin
+printf 'foo.com\nbar.io\n' | domradar check -
+
+# Machine-readable JSON for scripting
+domradar check example.com --json
 ```
 
 By default, `check` only reports on the exact domain(s) you asked about —
@@ -48,6 +57,18 @@ no extra lookups, so it stays fast. Pass `--similar` if you also want
 alternatives (other TLDs, common prefixes like `get`/`my`/`try`, common
 suffixes like `app`/`hq`/`hub`, and hyphenated variants) checked and shown
 for any domain that's taken.
+
+#### Exit codes (check)
+
+Meaningful exit codes make `domradar check` scriptable:
+
+- `0` — every queried domain is AVAILABLE
+- `1` — at least one queried domain is TAKEN (rest may be available)
+- `2` — at least one result was UNKNOWN, or input was invalid
+
+```bash
+domradar check mystartup.io && echo "buy it"
+```
 
 ### Detailed WHOIS / RDAP lookup
 
@@ -57,11 +78,20 @@ domradar whois example.com
 
 # Force the legacy raw WHOIS protocol
 domradar whois example.com --raw
+
+# JSON output for scripting
+domradar whois example.com --json
 ```
+
+#### Exit codes (whois)
+
+- `0` — a registration record was returned (domain is TAKEN)
+- `1` — no record; domain appears AVAILABLE
+- `2` — lookup failed or input was invalid
 
 ### Other flags
 
-- `--no-color` — disable ANSI colors (auto-disabled when piping output).
+- `--no-color` — disable ANSI colors (auto-disabled when piping output or with `--json`).
 - `--timeout SECONDS` — network timeout per query (default: 6s).
 
 ## Notes
@@ -72,3 +102,8 @@ domradar whois example.com --raw
 - Availability detection for legacy WHOIS is heuristic (pattern matching on
   the response text) since WHOIS output format isn't standardized across
   registries — RDAP results are authoritative where available.
+- IDNs (e.g. `münchen.de`) are punycode-encoded automatically before lookup.
+- The IANA RDAP bootstrap map is cached at `~/.cache/domradar/bootstrap.json`
+  with a 24-hour TTL, so cold starts don't pay a full network round-trip.
+- RDAP HTTPS connections are pooled per-host per-thread, so batch checks
+  against the same registry reuse a single TCP+TLS session.
