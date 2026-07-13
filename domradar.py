@@ -27,10 +27,12 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+from importlib.metadata import PackageNotFoundError, version
 import json
 import re
 import socket
 import sys
+import threading
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -44,7 +46,7 @@ IANA_WHOIS_SERVER = "whois.iana.org"
 WHOIS_PORT = 43
 RDAP_BOOTSTRAP_URL = "https://data.iana.org/rdap/dns.json"
 DEFAULT_TIMEOUT = 6
-USER_AGENT = "domain-checker/1.0 (+https://github.com/)"
+USER_AGENT = "domradar/0.1 (+https://github.com/ernilambar/domradar)"
 
 POPULAR_TLDS = ["com", "net", "org", "io", "co", "dev", "app", "ai"]
 
@@ -87,17 +89,31 @@ REFERRAL_RE = re.compile(
 )
 
 # ANSI colors (disabled automatically when not a TTY, or via --no-color)
-class Colors:
-    GREEN = "\033[92m"
-    RED = "\033[91m"
-    YELLOW = "\033[93m"
-    DIM = "\033[2m"
-    BOLD = "\033[1m"
-    RESET = "\033[0m"
+class _Colors:
+    def __init__(self):
+        self._enabled = True
 
-    @classmethod
-    def disable(cls):
-        cls.GREEN = cls.RED = cls.YELLOW = cls.DIM = cls.BOLD = cls.RESET = ""
+    def _v(self, code: str) -> str:
+        return code if self._enabled else ""
+
+    @property
+    def GREEN(self) -> str: return self._v("\033[92m")
+    @property
+    def RED(self) -> str: return self._v("\033[91m")
+    @property
+    def YELLOW(self) -> str: return self._v("\033[93m")
+    @property
+    def DIM(self) -> str: return self._v("\033[2m")
+    @property
+    def BOLD(self) -> str: return self._v("\033[1m")
+    @property
+    def RESET(self) -> str: return self._v("\033[0m")
+
+    def disable(self):
+        self._enabled = False
+
+
+Colors = _Colors()
 
 
 # --------------------------------------------------------------------------
@@ -118,6 +134,7 @@ class CheckResult:
 # --------------------------------------------------------------------------
 
 _rdap_bootstrap_cache: Optional[dict] = None
+_rdap_bootstrap_lock = threading.Lock()
 
 
 def load_rdap_bootstrap(timeout: float = DEFAULT_TIMEOUT) -> dict:
@@ -125,20 +142,23 @@ def load_rdap_bootstrap(timeout: float = DEFAULT_TIMEOUT) -> dict:
     global _rdap_bootstrap_cache
     if _rdap_bootstrap_cache is not None:
         return _rdap_bootstrap_cache
-    mapping: dict = {}
-    try:
-        req = urllib.request.Request(
-            RDAP_BOOTSTRAP_URL, headers={"User-Agent": USER_AGENT}
-        )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = json.load(resp)
-        for entry in data.get("services", []):
-            tlds, urls = entry[0], entry[1]
-            for tld in tlds:
-                mapping[tld.lower()] = urls
-    except Exception:
-        mapping = {}
-    _rdap_bootstrap_cache = mapping
+    with _rdap_bootstrap_lock:
+        if _rdap_bootstrap_cache is not None:
+            return _rdap_bootstrap_cache
+        mapping: dict = {}
+        try:
+            req = urllib.request.Request(
+                RDAP_BOOTSTRAP_URL, headers={"User-Agent": USER_AGENT}
+            )
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = json.load(resp)
+            for entry in data.get("services", []):
+                tlds, urls = entry[0], entry[1]
+                for tld in tlds:
+                    mapping[tld.lower()] = urls
+        except (urllib.error.URLError, json.JSONDecodeError, OSError):
+            mapping = {}
+        _rdap_bootstrap_cache = mapping
     return mapping
 
 
@@ -173,7 +193,7 @@ def rdap_lookup(domain: str, timeout: float = DEFAULT_TIMEOUT) -> Optional[dict]
             if e.code == 404:
                 return {"available": True, "data": None}
             continue
-        except Exception:
+        except (urllib.error.URLError, json.JSONDecodeError, OSError):
             continue
     return None
 
@@ -276,9 +296,28 @@ def guess_availability_from_text(text: str) -> Optional[bool]:
 # Availability check (RDAP first, WHOIS fallback)
 # --------------------------------------------------------------------------
 
+_LABEL_RE = re.compile(r'^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?$')
+
+
+def _is_valid_domain(domain: str) -> bool:
+    if not domain or len(domain) > 253:
+        return False
+    labels = domain.split('.')
+    return len(labels) >= 2 and all(_LABEL_RE.match(lbl) for lbl in labels)
+
+
+def _normalize_domain(domain: str) -> str:
+    domain = domain.lower().strip()
+    for prefix in ("https://", "http://"):
+        if domain.startswith(prefix):
+            domain = domain[len(prefix):]
+    return domain.rstrip("/").strip(".")
+
 
 def check_domain(domain: str, timeout: float = DEFAULT_TIMEOUT) -> CheckResult:
-    domain = domain.lower().strip().strip(".")
+    domain = _normalize_domain(domain)
+    if not _is_valid_domain(domain):
+        return CheckResult(domain, None, "validation", "invalid domain name")
 
     rdap_result = rdap_lookup(domain, timeout=timeout)
     if rdap_result is not None:
@@ -400,11 +439,12 @@ def cmd_check(args):
             targets = [f"{name}.{t}" for t in (tld_pool or POPULAR_TLDS)]
 
         print(f"\n{Colors.BOLD}{raw}{Colors.RESET}")
-        results = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(targets))) as ex:
-            futures = [ex.submit(check_domain, d, args.timeout) for d in targets]
-            for fut in futures:
-                results.append(fut.result())
+        if len(targets) == 1:
+            results = [check_domain(targets[0], args.timeout)]
+        else:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(targets))) as ex:
+                futures = [ex.submit(check_domain, d, args.timeout) for d in targets]
+                results = [fut.result() for fut in futures]
         results.sort(key=lambda r: r.domain)
         for res in results:
             print_result_line(res)
@@ -432,7 +472,7 @@ def cmd_check(args):
 
 
 def cmd_whois(args):
-    domain = args.domain.lower().strip()
+    domain = _normalize_domain(args.domain)
 
     if not args.raw:
         rdap_result = rdap_lookup(domain, timeout=args.timeout)
@@ -465,11 +505,23 @@ def cmd_whois(args):
 # --------------------------------------------------------------------------
 
 
+def _similar_count_type(value: str) -> int:
+    n = int(value)
+    if not 1 <= n <= 20:
+        raise argparse.ArgumentTypeError("must be between 1 and 20")
+    return n
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="domradar",
         description="Check domain name availability and inspect WHOIS/RDAP records.",
     )
+    try:
+        _version = version("domradar")
+    except PackageNotFoundError:
+        _version = "unknown"
+    parser.add_argument("--version", "-V", action="version", version=f"%(prog)s {_version}")
     parser.add_argument("--no-color", action="store_true", help="Disable colored output.")
 
     sub = parser.add_subparsers(dest="command", required=True)
@@ -486,8 +538,8 @@ def build_parser() -> argparse.ArgumentParser:
              "Off by default for speed."
     )
     p_check.add_argument(
-        "--similar-count", type=int, default=5,
-        help="Number of similar available domains to suggest if --similar is set (default: 5)."
+        "--similar-count", type=_similar_count_type, default=5,
+        help="Number of similar available domains to suggest if --similar is set (default: 5, max: 20)."
     )
     p_check.add_argument(
         "--timeout", type=float, default=DEFAULT_TIMEOUT,
