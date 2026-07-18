@@ -5,15 +5,15 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/tests.yml'
-      - 'domradar.py'
-      - 'tests/**'
-      - 'pyproject.toml'
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
   pull_request:
     paths:
       - '.github/workflows/tests.yml'
-      - 'domradar.py'
-      - 'tests/**'
-      - 'pyproject.toml'
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
     types:
       - opened
       - reopened
@@ -29,10 +29,20 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          python-version: "3.11"
-      - name: Install dependencies
-        run: pip install -e ".[dev]"
+          go-version: "1.24"
+
+      - name: Vet
+        run: go vet ./...
+
       - name: Run tests
-        run: pytest tests/ -v
+        run: go test ./... -v
+
+      - name: Build binary (smoke test)
+        run: go build -trimpath -ldflags="-s -w" -o domradar .
+
+      - name: Verify binary runs
+        run: ./domradar --version

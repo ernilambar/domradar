@@ -91,7 +91,6 @@ domradar whois example.com --json
 
 ### Other flags
 
-- `--no-color` — disable ANSI colors (auto-disabled when piping output or with `--json`).
 - `--timeout SECONDS` — network timeout per query (default: 6s).
 
 ## Notes
