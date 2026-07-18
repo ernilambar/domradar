@@ -36,11 +36,10 @@ Thumbs.db
 *.zip
 *~
 
-# Python
-__pycache__/
-.venv/
-venv/
-*.egg-info/
+# Go
+/domradar
+/domradar-*
+/dist/
 
 # Project folders
 /build/
