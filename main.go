@@ -517,13 +517,7 @@ var checkDomainFn = func(domain string, timeout time.Duration) CheckResult {
 	return CheckResult{Domain: domain, Available: avail, Method: "WHOIS (heuristic)"}
 }
 
-// ---------------------------------------------------------------------------
-// Similar domain suggestions
-// ---------------------------------------------------------------------------
-
 var popularTLDs = []string{"com", "net", "org", "io", "co", "dev", "app", "ai"}
-var prefixes = []string{"get", "my", "the", "try", "use", "go"}
-var suffixes = []string{"app", "hq", "online", "site", "web", "hub", "labs"}
 
 func splitDomain(domain string) (name, tld string) {
 	idx := strings.Index(domain, ".")
@@ -531,122 +525,6 @@ func splitDomain(domain string) (name, tld string) {
 		return domain, ""
 	}
 	return domain[:idx], domain[idx+1:]
-}
-
-func generateSimilar(name, tld string, tldsPool []string) []string {
-	seen := map[string]bool{}
-	var candidates []string
-
-	add := func(n, t string) {
-		d := strings.ToLower(n + "." + t)
-		if !seen[d] {
-			seen[d] = true
-			candidates = append(candidates, d)
-		}
-	}
-
-	baseTLDs := tldsPool
-	if len(baseTLDs) == 0 {
-		baseTLDs = popularTLDs
-	}
-	mainTLD := tld
-	if mainTLD == "" {
-		mainTLD = "com"
-	}
-
-	for _, t := range baseTLDs {
-		if t != tld {
-			add(name, t)
-		}
-	}
-	for _, p := range prefixes {
-		add(p+name, mainTLD)
-	}
-	for _, s := range suffixes {
-		add(name+s, mainTLD)
-	}
-	add("get-"+name, mainTLD)
-	add(name+"-app", mainTLD)
-	add("try-"+name, mainTLD)
-
-	return candidates
-}
-
-func batchAvailableSimilar(takenResults []CheckResult, count int, tldsPool []string, timeout time.Duration) map[string][]string {
-	if len(takenResults) == 0 {
-		return map[string][]string{}
-	}
-
-	candidateOwner := map[string]string{}
-	order := map[string][]string{}
-	for _, res := range takenResults {
-		n, t := splitDomain(res.Domain)
-		cands := generateSimilar(n, t, tldsPool)
-		if len(cands) > 25 {
-			cands = cands[:25]
-		}
-		order[res.Domain] = []string{}
-		for _, c := range cands {
-			if _, exists := candidateOwner[c]; !exists {
-				candidateOwner[c] = res.Domain
-				order[res.Domain] = append(order[res.Domain], c)
-			}
-		}
-	}
-
-	found := map[string]map[string]bool{}
-	for _, res := range takenResults {
-		found[res.Domain] = map[string]bool{}
-	}
-
-	if len(candidateOwner) == 0 {
-		out := map[string][]string{}
-		for _, res := range takenResults {
-			out[res.Domain] = []string{}
-		}
-		return out
-	}
-
-	type hit struct{ candidate, parent string }
-	ch := make(chan hit, len(candidateOwner))
-	sem := make(chan struct{}, 10)
-	var wg sync.WaitGroup
-	for cand, parent := range candidateOwner {
-		wg.Add(1)
-		sem <- struct{}{}
-		go func(c, p string) {
-			defer wg.Done()
-			defer func() { <-sem }()
-			r := checkDomainFn(c, timeout)
-			if r.Available != nil && *r.Available {
-				ch <- hit{c, p}
-			}
-		}(cand, parent)
-	}
-	go func() {
-		wg.Wait()
-		close(ch)
-	}()
-	for h := range ch {
-		if len(found[h.parent]) < count {
-			found[h.parent][h.candidate] = true
-		}
-	}
-
-	out := map[string][]string{}
-	for parent, cands := range order {
-		var available []string
-		for _, c := range cands {
-			if found[parent][c] {
-				available = append(available, c)
-				if len(available) >= count {
-					break
-				}
-			}
-		}
-		out[parent] = available
-	}
-	return out
 }
 
 // ---------------------------------------------------------------------------
@@ -712,8 +590,6 @@ func collectInputDomains(args []string) []string {
 type checkArgs struct {
 	Domains       []string
 	TLD           string
-	Similar       bool
-	SimilarCount  int
 	AvailableOnly bool
 	JSON          bool
 	Timeout       float64
@@ -789,28 +665,12 @@ func cmdCheck(args checkArgs) int {
 		groups = append(groups, group{Input: raw, Results: results})
 	}
 
-	similarMap := map[string][]string{}
-	if args.Similar {
-		var taken []CheckResult
-		for _, g := range groups {
-			for _, r := range g.Results {
-				if r.Available != nil && !*r.Available {
-					taken = append(taken, r)
-				}
-			}
-		}
-		if len(taken) > 0 {
-			similarMap = batchAvailableSimilar(taken, args.SimilarCount, tldsPool, timeout)
-		}
-	}
-
 	if args.JSON {
 		type jsonResult struct {
-			Domain    string   `json:"domain"`
-			Available *bool    `json:"available"`
-			Method    string   `json:"method"`
-			Detail    string   `json:"detail"`
-			Similar   []string `json:"similar,omitempty"`
+			Domain    string `json:"domain"`
+			Available *bool  `json:"available"`
+			Method    string `json:"method"`
+			Detail    string `json:"detail"`
 		}
 		type jsonGroup struct {
 			Input   string       `json:"input"`
@@ -823,19 +683,12 @@ func cmdCheck(args checkArgs) int {
 				if args.AvailableOnly && (r.Available == nil || !*r.Available) {
 					continue
 				}
-				item := jsonResult{
+				entries = append(entries, jsonResult{
 					Domain:    r.Domain,
 					Available: r.Available,
 					Method:    r.Method,
 					Detail:    r.Detail,
-				}
-				if args.Similar && r.Available != nil && !*r.Available {
-					item.Similar = similarMap[r.Domain]
-					if item.Similar == nil {
-						item.Similar = []string{}
-					}
-				}
-				entries = append(entries, item)
+				})
 			}
 			payload = append(payload, jsonGroup{Input: g.Input, Results: entries})
 		}
@@ -851,37 +704,12 @@ func cmdCheck(args checkArgs) int {
 					visible = append(visible, r)
 				}
 			}
-			hasSuggestions := false
-			if args.Similar {
-				for _, r := range g.Results {
-					if r.Available != nil && !*r.Available && len(similarMap[r.Domain]) > 0 {
-						hasSuggestions = true
-					}
-				}
-			}
-			if len(visible) == 0 && !hasSuggestions {
+			if len(visible) == 0 {
 				continue
 			}
 			fmt.Printf("\n%s\n", g.Input)
 			for _, r := range visible {
 				printResultLine(r)
-			}
-			if !args.Similar {
-				continue
-			}
-			for _, res := range g.Results {
-				if res.Available == nil || *res.Available {
-					continue
-				}
-				suggestions := similarMap[res.Domain]
-				if len(suggestions) > 0 {
-					fmt.Printf("    Similar available domains for %s:\n", res.Domain)
-					for _, s := range suggestions {
-						fmt.Printf("      ✓ %s\n", s)
-					}
-				} else if !args.AvailableOnly {
-					fmt.Printf("    No available similar domains found for %s.\n", res.Domain)
-				}
 			}
 		}
 	}
@@ -1013,7 +841,7 @@ USAGE
   domradar <command> [options]
 
 COMMANDS
-  check <domain>... [--tld <tlds>] [--similar] [--available-only] [--json]
+  check <domain>... [--tld <tlds>] [--available-only] [--json]
       Check availability of one or more domains.
 
   whois <domain> [--raw] [--json]
@@ -1067,23 +895,14 @@ func runCheck(rest []string) int {
 	fs := flag.NewFlagSet("check", flag.ExitOnError)
 	fs.SetOutput(os.Stderr)
 	tld := fs.String("tld", "", "Comma-separated TLDs for bare names")
-	similar := fs.Bool("similar", false, "Suggest similar available domains when taken")
-	similarCount := fs.Int("similar-count", 5, "Number of similar suggestions (1-20)")
 	availableOnly := fs.Bool("available-only", false, "Only show AVAILABLE domains")
 	jsonOut := fs.Bool("json", false, "Machine-readable JSON output")
 	timeout := fs.Float64("timeout", defaultTimeout.Seconds(), "Network timeout in seconds")
 	fs.Parse(normalizeArgs(rest))
 
-	if *similarCount < 1 || *similarCount > 20 {
-		fmt.Fprintln(os.Stderr, "Error: --similar-count must be between 1 and 20")
-		return 2
-	}
-
 	return cmdCheck(checkArgs{
 		Domains:       fs.Args(),
 		TLD:           *tld,
-		Similar:       *similar,
-		SimilarCount:  *similarCount,
 		AvailableOnly: *availableOnly,
 		JSON:          *jsonOut,
 		Timeout:       *timeout,

@@ -1,6 +1,6 @@
 # domradar
 
-CLI tool to check domain name availability, optionally suggest similar available domains, and pull detailed WHOIS/RDAP records.
+CLI tool to check domain name availability and pull detailed WHOIS/RDAP records.
 
 Availability checks use **RDAP** (JSON over HTTPS, via the IANA bootstrap registry) whenever the TLD supports it — a clean 404 means "available." For TLDs without RDAP, it falls back to a classic WHOIS socket query (port 43), with a text heuristic.
 
@@ -47,13 +47,6 @@ domradar check example example.com mystartup.io
 # Custom TLD list for bare names
 domradar check --tld com,net,dev example
 
-# Also suggest similar available alternatives when a domain is taken
-# (off by default — enabling this adds extra lookups and is slower)
-domradar check --similar example.com
-
-# Control how many alternatives are suggested
-domradar check --similar --similar-count 10 example.com
-
 # Only report AVAILABLE results (quiet mode)
 domradar check --available-only example
 
@@ -63,8 +56,6 @@ printf 'foo.com\nbar.io\n' | domradar check -
 # Machine-readable JSON for scripting
 domradar check --json example.com
 ```
-
-By default, `check` only reports on the exact domain(s) you asked about — no extra lookups, so it stays fast. Pass `--similar` if you also want alternatives (other TLDs, common prefixes like `get`/`my`/`try`, common suffixes like `app`/`hq`/`hub`, and hyphenated variants) checked and shown for any domain that's taken.
 
 #### Exit codes (check)
 
@@ -99,8 +90,6 @@ domradar whois --json example.com
 
 ```
 --tld          Comma-separated TLDs for bare names (check only)
---similar      Suggest similar available domains when taken (check only)
---similar-count  Number of suggestions, 1–20 (default: 5)
 --available-only  Only show AVAILABLE domains (check only)
 --raw          Force raw legacy WHOIS instead of RDAP (whois only)
 --json         Machine-readable JSON output

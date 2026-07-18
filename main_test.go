@@ -160,58 +160,6 @@ func TestSplitDomain(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// generateSimilar
-// ---------------------------------------------------------------------------
-
-func TestGenerateSimilar(t *testing.T) {
-	result := generateSimilar("example", "com", nil)
-	if len(result) == 0 {
-		t.Fatal("expected non-empty result")
-	}
-
-	// no self-duplicate
-	for _, d := range result {
-		if d == "example.com" {
-			t.Error("self domain should not appear in similar list")
-		}
-	}
-
-	// no duplicates
-	seen := map[string]bool{}
-	for _, d := range result {
-		if seen[d] {
-			t.Errorf("duplicate domain %q", d)
-		}
-		seen[d] = true
-	}
-
-	// custom TLD pool
-	result2 := generateSimilar("example", "", []string{"io", "dev"})
-	domains := map[string]bool{}
-	for _, d := range result2 {
-		domains[d] = true
-	}
-	if !domains["example.io"] {
-		t.Error("expected example.io in result")
-	}
-	if !domains["example.dev"] {
-		t.Error("expected example.dev in result")
-	}
-
-	// prefix/suffix variants
-	domainSet := map[string]bool{}
-	for _, d := range result {
-		domainSet[d] = true
-	}
-	if !domainSet["getexample.com"] {
-		t.Error("expected getexample.com")
-	}
-	if !domainSet["examplehq.com"] {
-		t.Error("expected examplehq.com")
-	}
-}
-
-// ---------------------------------------------------------------------------
 // formatRDAP
 // ---------------------------------------------------------------------------
 
@@ -508,54 +456,6 @@ func TestWhoisLookup(t *testing.T) {
 		}
 		if text != "" {
 			t.Errorf("expected empty text, got: %q", text)
-		}
-	})
-}
-
-// ---------------------------------------------------------------------------
-// batchAvailableSimilar
-// ---------------------------------------------------------------------------
-
-func TestBatchAvailableSimilar(t *testing.T) {
-	t.Run("empty input", func(t *testing.T) {
-		out := batchAvailableSimilar(nil, 5, nil, time.Second)
-		if len(out) != 0 {
-			t.Errorf("expected empty map, got %v", out)
-		}
-	})
-
-	t.Run("no available returns empty lists", func(t *testing.T) {
-		orig := checkDomainFn
-		checkDomainFn = func(d string, t time.Duration) CheckResult {
-			return CheckResult{Domain: d, Available: boolPtr(false), Method: "stub"}
-		}
-		defer func() { checkDomainFn = orig }()
-		taken := []CheckResult{{Domain: "foo.com", Available: boolPtr(false), Method: "stub"}}
-		out := batchAvailableSimilar(taken, 5, nil, time.Second)
-		if sug, ok := out["foo.com"]; !ok || len(sug) != 0 {
-			t.Errorf("expected empty list for foo.com, got %v", sug)
-		}
-	})
-
-	t.Run("dedupes across parents", func(t *testing.T) {
-		orig := checkDomainFn
-		checkDomainFn = func(d string, t time.Duration) CheckResult {
-			return CheckResult{Domain: d, Available: boolPtr(true), Method: "stub"}
-		}
-		defer func() { checkDomainFn = orig }()
-		taken := []CheckResult{
-			{Domain: "foo.com", Available: boolPtr(false), Method: "stub"},
-			{Domain: "foo.net", Available: boolPtr(false), Method: "stub"},
-		}
-		out := batchAvailableSimilar(taken, 5, nil, time.Second)
-		seen := map[string]bool{}
-		for _, suggestions := range out {
-			for _, s := range suggestions {
-				if seen[s] {
-					t.Errorf("candidate %q appeared under multiple parents", s)
-				}
-				seen[s] = true
-			}
 		}
 	})
 }
