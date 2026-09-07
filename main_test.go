@@ -577,7 +577,9 @@ func TestMainCheck(t *testing.T) {
 			run([]string{"check", "--tld", "com,net", "--available-only", "--json", "example"})
 		})
 		var payload []struct {
-			Results []struct{ Domain string `json:"domain"` } `json:"results"`
+			Results []struct {
+				Domain string `json:"domain"`
+			} `json:"results"`
 		}
 		if err := json.Unmarshal([]byte(out), &payload); err != nil {
 			t.Fatalf("invalid JSON: %v", err)
