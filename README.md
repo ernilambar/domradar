@@ -113,6 +113,8 @@ domradar whois --json example.com
 
 ## Notes
 
+Release history is in [CHANGELOG.md](CHANGELOG.md).
+
 - Requires outbound internet access (HTTPS for RDAP, TCP port 43 for WHOIS fallback). If your network blocks port 43, some TLDs without RDAP support will show as UNKNOWN.
 - Availability detection for legacy WHOIS is heuristic since WHOIS output format isn't standardized — RDAP results are authoritative where available.
 - IDNs (e.g. `münchen.de`) are punycode-encoded automatically before lookup.

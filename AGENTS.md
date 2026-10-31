@@ -49,8 +49,22 @@ runs only `go vet`, `go test`, and a build smoke test.
   single `domradar-darwin-arm64` binary (GOOS=darwin, GOARCH=arm64, CGO off).
   Intel (`amd64`) support has been dropped — do not re-add an amd64 matrix entry,
   and the Homebrew formula must stay arm64-only.
-- **Version sync.** The `version` constant at the top of `main.go` must match the
-  latest release git tag (tags are `v`-prefixed, e.g. `v1.0.0`). Bump both together.
+- **Version sync.** The `version` constant at the top of `main.go` (currently
+  `const version = "1.0.0"`, line ~28) is the single source of truth: it feeds
+  `userAgent` and the `domradar --version` output. Before a release, bump it to
+  the new value and push a matching `v`-prefixed tag (e.g. `version = "1.0.1"` +
+  tag `v1.0.1`); the two must always match. Nothing else in this repo hardcodes
+  the version — `README.md` and `CONTRIBUTING.md` only use example tags, and the
+  release workflow derives the artifact name from the tag. The Homebrew formula's
+  own `version`/`url`/`sha256` live in the separate `ernilambar/homebrew-tap` repo
+  and are updated there with `bin/release-formula domradar <version>`.
+- **Changelog is flatlog-validated.** `CHANGELOG.md` must follow the
+  [flatlog](https://github.com/ernilambar/flatlog) format: one `# Changelog` title,
+  newest-first `## X.Y.Z - YYYY-MM-DD` headers, flat bullets grouped
+  `Added:` → `Changed:` → `Fixed:`, `- Initial release` only for the first release,
+  lines ≤ 120 chars. Validate with `npx @nilambar/flatlog validate <version>`
+  (note the `@` scope — `npx nilambar/flatlog` does not resolve) and keep the
+  topmost version equal to `main.go`'s `version` constant.
 - **Formatting.** `.editorconfig` mandates tabs (4-wide), LF, UTF-8, and a final
   newline. `gofmt` output is authoritative. Do not commit the root-level `domradar`
   binary (gitignored; CI builds it only as a smoke test).

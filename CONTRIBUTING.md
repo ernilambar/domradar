@@ -44,7 +44,24 @@ go run . whois example.com
 go run . whois --json example.com
 ```
 
+## Changelog
+
+`CHANGELOG.md` follows the [flatlog](https://github.com/ernilambar/flatlog) format:
+title line, then newest-first `## X.Y.Z - YYYY-MM-DD` headers, with flat bullets
+grouped `Added:` → `Changed:` → `Fixed:` (the first release uses `- Initial release`).
+
+Add entries under an `## X.X.X - YYYY-MM-DD` placeholder block while developing, then
+validate before pushing a release:
+
+```bash
+npx @nilambar/flatlog validate <version>
+```
+
 ## Release
+
+1. Bump the `version` constant at the top of `main.go` to the version being released.
+2. Add the release to `CHANGELOG.md` (see below).
+3. Tag and push:
 
 Tags must be prefixed with `v` (e.g. `v0.1.2`). The release workflow triggers on `v*` tags only — an unprefixed tag like `0.1.2` will not build or publish binaries. Only the Apple Silicon `domradar-darwin-arm64` binary is published.
 
