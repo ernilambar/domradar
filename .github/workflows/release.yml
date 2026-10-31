@@ -10,15 +10,6 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - goos: darwin
-            goarch: arm64
-            suffix: darwin-arm64
-          - goos: darwin
-            goarch: amd64
-            suffix: darwin-amd64
     steps:
       - uses: actions/checkout@v4
 
@@ -29,17 +20,17 @@ jobs:
 
       - name: Build
         env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
+          GOOS: darwin
+          GOARCH: arm64
           CGO_ENABLED: "0"
         run: |
           mkdir -p dist
-          go build -trimpath -ldflags="-s -w" -o dist/domradar-${{ matrix.suffix }} .
+          go build -trimpath -ldflags="-s -w" -o dist/domradar-darwin-arm64 .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: domradar-${{ matrix.suffix }}
+          name: domradar-darwin-arm64
           path: dist/*
 
   release:

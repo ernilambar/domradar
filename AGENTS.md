@@ -45,6 +45,10 @@ runs only `go vet`, `go test`, and a build smoke test.
   `false` taken. Human-readable results go to stdout; errors go to stderr prefixed
   with `Error: `. JSON output must go through `json.Encoder` with
   `SetIndent("", "  ")` and `SetEscapeHTML(false)`.
+- **Release artifacts are Apple Silicon only.** The release workflow publishes a
+  single `domradar-darwin-arm64` binary (GOOS=darwin, GOARCH=arm64, CGO off).
+  Intel (`amd64`) support has been dropped — do not re-add an amd64 matrix entry,
+  and the Homebrew formula must stay arm64-only.
 - **Version sync.** The `version` constant at the top of `main.go` must match the
   latest release git tag (tags are `v`-prefixed, e.g. `v1.0.0`). Bump both together.
 - **Formatting.** `.editorconfig` mandates tabs (4-wide), LF, UTF-8, and a final

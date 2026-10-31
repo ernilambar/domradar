@@ -6,11 +6,26 @@ Availability checks use **RDAP** (JSON over HTTPS, via the IANA bootstrap regist
 
 ## Requirements
 
-- Go 1.24+ (for building from source)
+- macOS on Apple Silicon (arm64) for the prebuilt binaries
+- Go 1.24+ (only for building from source, on any platform Go supports)
 
 ## Install / Upgrade
 
-**macOS** — prebuilt binary (replace `arm64` with `amd64` for Intel Macs):
+**Homebrew (recommended, macOS):**
+
+```bash
+brew tap ernilambar/tap
+brew trust ernilambar/tap
+brew install ernilambar/tap/domradar
+```
+
+Upgrade later with:
+
+```bash
+brew update && brew upgrade domradar
+```
+
+**Prebuilt binary** — Apple Silicon only; download directly from GitHub releases:
 
 ```bash
 curl -fL -o domradar https://github.com/ernilambar/domradar/releases/latest/download/domradar-darwin-arm64
@@ -106,31 +121,9 @@ domradar whois --json example.com
 ## Contributing
 
 Bug reports and pull requests are welcome on [GitHub](https://github.com/ernilambar/domradar).
-
-1. Fork the repo and create your branch from `main`.
-2. Make your changes and test locally with `go test ./...`.
-3. Open a pull request with a clear description of what changed and why.
-
-### Manual Testing
-
-Before opening a PR, verify the key commands against real domains:
-
-```bash
-go run . check example.com
-go run . check --json example.com
-go run . whois example.com
-go run . whois --json example.com
-```
-
-## Release
-
-Tags must be prefixed with `v` (e.g. `v1.0.0`). The release workflow triggers on `v*` tags only — an unprefixed tag like `1.0.0` will not build or publish binaries.
-
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, the quality gate, manual
+testing, and the release process.
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE) © [Nilambar Sharma](https://www.nilambar.net)
