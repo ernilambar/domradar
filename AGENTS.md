@@ -22,18 +22,26 @@ needed. Network access is required only at runtime, not for the quality gate.
 - **Output.** Availability is a `*bool` (`nil` = UNKNOWN). Results to stdout;
   errors to stderr prefixed `Error: `. JSON via `json.Encoder` with
   `SetIndent("", "  ")` and `SetEscapeHTML(false)`.
-- **Release.** Publish only `domradar-darwin-arm64` (macOS 15+, CGO off), built
-  with `-ldflags="-s -w -macos 15.0"`. Never add amd64; keep the Homebrew
-  formula arm64-only with a macOS 15 minimum.
-- **Version sync.** `version` in `main.go` is the single source of truth and must
-  match the `v`-prefixed tag. The Homebrew formula's version/url/sha256 live in
-  `ernilambar/homebrew-tap`, updated via `bin/release-formula domradar <version>`.
 - **Changelog.** `CHANGELOG.md` follows flatlog: newest-first
   `## X.Y.Z - YYYY-MM-DD`, bullets grouped Added/Changed/Fixed, lines ≤ 120.
   Validate with `npx @nilambar/flatlog validate <version>` (scope required); the
   top version must equal `main.go`'s `version`.
 - **Formatting.** Tabs (4-wide), LF, UTF-8, final newline; `gofmt` is
   authoritative. Never commit the root `domradar` binary.
+
+## Release
+
+Bump the version in exactly one place: the `const version` at the top of
+`main.go`. Everything else derives from it or must be kept in sync:
+
+1. Set `const version = "X.Y.Z"` in `main.go` (single source of truth).
+2. Add the top `## X.Y.Z - YYYY-MM-DD` entry to `CHANGELOG.md`; it must match
+   `main.go`'s version. Validate with `npx @nilambar/flatlog validate X.Y.Z`.
+3. Create tag `vX.Y.Z` (prefix required; the workflow triggers on `v*` only).
+4. The release workflow publishes only `domradar-darwin-arm64` (macOS 15+,
+   CGO off), built with `-ldflags="-s -w -macos 15.0"`. Never add amd64.
+5. Update the Homebrew formula after the GitHub release; keep it arm64-only
+   with a macOS 15 minimum.
 
 ## Quality Gate
 

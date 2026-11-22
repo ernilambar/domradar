@@ -25,7 +25,7 @@ import (
 	"golang.org/x/net/idna"
 )
 
-const version = "1.0.1"
+const version = "1.0.2"
 
 const (
 	ianaWhoisServer  = "whois.iana.org"
