@@ -1,6 +1,6 @@
 module github.com/ernilambar/domradar
 
-go 1.24
+go 1.27
 
 require golang.org/x/net v0.40.0
 

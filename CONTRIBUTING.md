@@ -8,7 +8,7 @@ Bug reports and pull requests are welcome on [GitHub](https://github.com/ernilam
 
 ## Requirements
 
-- Go 1.24+ (install from [go.dev/dl](https://go.dev/dl))
+- Go 1.27+ (install from [go.dev/dl](https://go.dev/dl))
 - No environment variables, config files, or credentials are needed to build or
   test. Outbound HTTPS and TCP port 43 access are only required at runtime.
 

@@ -16,7 +16,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24"
+          go-version: "1.27"
 
       - name: Build
         env:
@@ -25,7 +25,7 @@ jobs:
           CGO_ENABLED: "0"
         run: |
           mkdir -p dist
-          go build -trimpath -ldflags="-s -w" -o dist/domradar-darwin-arm64 .
+          go build -trimpath -ldflags="-s -w -macos 15.0" -o dist/domradar-darwin-arm64 .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
